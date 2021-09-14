@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from requests_oauthlib import OAuth1Session
 
@@ -97,3 +98,28 @@ oauth = authenticate()
 user_id = get_user_id(oauth)
 followers = get_followers(oauth, user_id)
 print(followers)
+
+fake_followers = []
+
+for follower in followers:
+    # verified users are not fake
+    if follower['verified']:
+        continue
+
+    # if the user name still ends with numbers, might be fake
+    ends_with_numbers = re.search(r'\d+$', follower['username']) is not None
+    if not ends_with_numbers:
+        continue
+
+    # any users with more than one tweet are not obviously fake
+    if follower['public_metrics']['tweet_count'] > 1:
+        continue
+
+    followers_count = follower['public_metrics']['followers_count']
+    following_count = follower['public_metrics']['following_count']
+
+    # check some follower ratios and limits before adding to fake followers list
+    if following_count > 10 * followers_count and followers_count < 5:
+        fake_followers.append(follower['username'])
+
+print('{} fake followers found: {}', len(fake_followers), fake_followers)
