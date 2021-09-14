@@ -44,8 +44,7 @@ def authenticate():
         client_secret=consumer_secret,
         resource_owner_key=resource_owner_key,
         resource_owner_secret=resource_owner_secret,
-        verifier=verifier,
-    )
+        verifier=verifier)
     oauth_tokens = oauth.fetch_access_token(ACCESS_TOKEN_URL)
 
     access_token = oauth_tokens["oauth_token"]
@@ -55,8 +54,7 @@ def authenticate():
         consumer_key,
         client_secret=consumer_secret,
         resource_owner_key=access_token,
-        resource_owner_secret=access_token_secret,
-    )
+        resource_owner_secret=access_token_secret)
 
 
 def get_user_id(oauth):
@@ -94,32 +92,30 @@ def get_followers(oauth, user_id):
     return json_response['data']
 
 
+def maybe_fake(follower):
+    # verified users are not fake
+    if follower['verified']:
+        return False
+
+    # if the user name still ends with numbers, might be fake
+    ends_with_numbers = re.search(r'\d+$', follower['username']) is not None
+    if not ends_with_numbers:
+        return False
+
+    # any users with more than one tweet are not obviously fake
+    if follower['public_metrics']['tweet_count'] > 1:
+        return False
+
+    # check some follower counts
+    if follower['public_metrics']['followers_count'] < 2:
+        return True
+
+
 oauth = authenticate()
 user_id = get_user_id(oauth)
 followers = get_followers(oauth, user_id)
 print(followers)
 
-fake_followers = []
-
-for follower in followers:
-    # verified users are not fake
-    if follower['verified']:
-        continue
-
-    # if the user name still ends with numbers, might be fake
-    ends_with_numbers = re.search(r'\d+$', follower['username']) is not None
-    if not ends_with_numbers:
-        continue
-
-    # any users with more than one tweet are not obviously fake
-    if follower['public_metrics']['tweet_count'] > 1:
-        continue
-
-    followers_count = follower['public_metrics']['followers_count']
-    following_count = follower['public_metrics']['following_count']
-
-    # check some follower ratios and limits before adding to fake followers list
-    if following_count > 10 * followers_count and followers_count < 5:
-        fake_followers.append(follower['username'])
+fake_followers = [f['username'] for f in followers if maybe_fake(f)]
 
 print('{} fake followers found: {}', len(fake_followers), fake_followers)
