@@ -63,15 +63,15 @@ def get_user_id(oauth):
 
     if user_response.status_code != 200:
         raise Exception(
-            "Request returned an error: {} {}".format(user_response.status_code, user_response.text))
+            "User request returned an error: {} {}".format(user_response.status_code, user_response.text))
 
-    print("Response code: {}".format(user_response.status_code))
+    print("User response code: {}".format(user_response.status_code))
 
     json_response = user_response.json()
 
     print(json.dumps(json_response, indent=2, sort_keys=True))
 
-    return json_response['id']
+    return json_response['data']['id']
 
 
 def get_followers(oauth, user_id):
@@ -80,10 +80,10 @@ def get_followers(oauth, user_id):
         "https://api.twitter.com/2/users/{}/followers".format(user_id), params=params)
 
     if followers_response.status_code != 200:
-        raise Exception("Request returned an error: {} {}".format(
+        raise Exception("Followers request returned an error: {} {}".format(
         followers_response.status_code, followers_response.text))
 
-    print("Response code: {}".format(followers_response.status_code))
+    print("Followers response code: {}".format(followers_response.status_code))
 
     json_response = followers_response.json()
 
@@ -96,6 +96,8 @@ def maybe_fake(follower):
     # verified users are not fake
     if follower['verified']:
         return False
+
+    # TODO: check created_at
 
     # if the user name still ends with numbers, might be fake
     ends_with_numbers = re.search(r'\d+$', follower['username']) is not None
