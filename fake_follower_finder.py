@@ -4,23 +4,17 @@ import os
 import re
 import sys
 from requests_oauthlib import OAuth1Session
+from secrets import key, secret
 
 parser = argparse.ArgumentParser(description='Identify fake followers.')
-parser.add_argument(
-    '--key', type=str, default=os.environ.get("CONSUMER_KEY"), help='the consumer key')
-parser.add_argument(
-    '--secret', type=str, default=os.environ.get("CONSUMER_SECRET"), help='the consumer secret')
 parser.add_argument('user', type=str, help='the user name to check')
 
 args = parser.parse_args()
 
 def authenticate():
-    consumer_key = args.key
-    consumer_secret = args.secret
-
     # Get request token
     REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token"
-    oauth = OAuth1Session(consumer_key, client_secret=consumer_secret, callback_uri='oob')
+    oauth = OAuth1Session(key, client_secret=secret, callback_uri='oob')
 
     try:
         fetch_response = oauth.fetch_request_token(REQUEST_TOKEN_URL)
@@ -40,8 +34,8 @@ def authenticate():
     # Get the access token
     ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token"
     oauth = OAuth1Session(
-        consumer_key,
-        client_secret=consumer_secret,
+        key,
+        client_secret=secret,
         resource_owner_key=resource_owner_key,
         resource_owner_secret=resource_owner_secret,
         verifier=verifier)
@@ -51,8 +45,8 @@ def authenticate():
     access_token_secret = oauth_tokens["oauth_token_secret"]
 
     return OAuth1Session(
-        consumer_key,
-        client_secret=consumer_secret,
+        key,
+        client_secret=secret,
         resource_owner_key=access_token,
         resource_owner_secret=access_token_secret)
 
