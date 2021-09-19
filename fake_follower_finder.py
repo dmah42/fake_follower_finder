@@ -1,74 +1,27 @@
-import argparse
+import authenticate
 import json
-import os
+import logging
 import re
 import sys
-from requests_oauthlib import OAuth1Session
-from secrets import key, secret
-
-parser = argparse.ArgumentParser(description='Identify fake followers.')
-parser.add_argument('user', type=str, help='the user name to check')
-
-args = parser.parse_args()
-
-def authenticate():
-    # Get request token
-    REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token"
-    oauth = OAuth1Session(key, client_secret=secret, callback_uri='oob')
-
-    try:
-        fetch_response = oauth.fetch_request_token(REQUEST_TOKEN_URL)
-    except ValueError:
-        sys.exit("There may have been an issue with the consumer_key or consumer_secret you entered.")
-
-    resource_owner_key = fetch_response.get("oauth_token")
-    resource_owner_secret = fetch_response.get("oauth_token_secret")
-    print("Got OAuth token: %s" % resource_owner_key)
-
-    # # Get authorization
-    BASE_AUTHORIZATION_URL = "https://api.twitter.com/oauth/authorize"
-    authorization_url = oauth.authorization_url(BASE_AUTHORIZATION_URL)
-    print("Please go here and authorize: %s" % authorization_url)
-    verifier = input("Paste the PIN here: ")
-
-    # Get the access token
-    ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token"
-    oauth = OAuth1Session(
-        key,
-        client_secret=secret,
-        resource_owner_key=resource_owner_key,
-        resource_owner_secret=resource_owner_secret,
-        verifier=verifier)
-    oauth_tokens = oauth.fetch_access_token(ACCESS_TOKEN_URL)
-
-    access_token = oauth_tokens["oauth_token"]
-    access_token_secret = oauth_tokens["oauth_token_secret"]
-
-    return OAuth1Session(
-        key,
-        client_secret=secret,
-        resource_owner_key=access_token,
-        resource_owner_secret=access_token_secret)
 
 
-def get_user_id(oauth):
-    screen_name = args.user
+def _get_user_id(oauth, screen_name):
     user_response = oauth.get("https://api.twitter.com/2/users/by/username/{}".format(screen_name))
 
     if user_response.status_code != 200:
         raise Exception(
             "User request returned an error: {} {}".format(user_response.status_code, user_response.text))
 
-    print("User response code: {}".format(user_response.status_code))
+    logging.info("User response code: %s", user_response.status_code)
 
     json_response = user_response.json()
 
-    print(json.dumps(json_response, indent=2, sort_keys=True))
+    logging.info("User response: %s", json.dumps(json_response, indent=2, sort_keys=True))
 
     return json_response['data']['id']
 
 
-def get_followers(oauth, user_id):
+def _get_followers(oauth, user_id):
     params = {"user.fields": "created_at,public_metrics,verified"}
     followers_response = oauth.get(
         "https://api.twitter.com/2/users/{}/followers".format(user_id), params=params)
@@ -77,16 +30,16 @@ def get_followers(oauth, user_id):
         raise Exception("Followers request returned an error: {} {}".format(
         followers_response.status_code, followers_response.text))
 
-    print("Followers response code: {}".format(followers_response.status_code))
+    logging.info("Followers response code: %s",format(followers_response.status_code))
 
     json_response = followers_response.json()
 
-    print(json.dumps(json_response, indent=2, sort_keys=True))
+    logging.info("Followers response: %s", json.dumps(json_response, indent=2, sort_keys=True))
 
     return json_response['data']
 
 
-def maybe_fake(follower):
+def _maybe_fake(follower):
     # verified users are not fake
     if follower['verified']:
         return False
@@ -107,11 +60,16 @@ def maybe_fake(follower):
         return True
 
 
-oauth = authenticate()
-user_id = get_user_id(oauth)
-followers = get_followers(oauth, user_id)
-print(followers)
+def query(oauth, screen_name):
+    user_id = _get_user_id(oauth, screen_name)
+    followers = _get_followers(oauth, user_id)
+    logging.info("%d followers found", len(followers))
 
-fake_followers = [f['username'] for f in followers if maybe_fake(f)]
+    return [f['username'] for f in followers if _maybe_fake(f)]
 
-print('{} fake followers found: {}', len(fake_followers), fake_followers)
+
+if __name__ == '__main__':
+    oauth = authenticate.create_local_session()
+    fake_followers = query(oauth, sys.argv[1])
+
+    logging.info("%d fake followers found: %s", len(fake_followers), fake_followers)
